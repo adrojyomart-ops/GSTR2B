@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GSTR-2B Analyzer</title>
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--text:#172033;--muted:#667085;--primary:#2563eb;--primary2:#1d4ed8;--border:#e4e7ec;--green:#067647;--red:#b42318}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+header{background:linear-gradient(135deg,#173ea5,#2563eb);color:#fff;padding:22px 18px}
+.header{max-width:1400px;margin:auto;display:flex;justify-content:space-between;gap:15px;align-items:center}.brand h1{margin:0;font-size:24px}.brand p{margin:5px 0 0;opacity:.86;font-size:13px}
+.container{max-width:1400px;margin:18px auto;padding:0 14px}.toolbar,.card{background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 2px 10px rgba(16,24,40,.04)}
+.toolbar{padding:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}.btn{border:0;border-radius:9px;padding:10px 14px;font-weight:700;cursor:pointer;background:#eef2ff;color:#1e3a8a}.btn.primary{background:var(--primary);color:#fff}.btn.primary:hover{background:var(--primary2)}.btn.danger{background:#fef3f2;color:var(--red)}input,select{border:1px solid #d0d5dd;border-radius:9px;padding:10px;background:#fff;color:var(--text)}input[type=file]{max-width:280px}.status{font-size:13px;color:var(--muted);margin-left:auto}
+.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin:15px 0}.kpi{padding:16px}.kpi .label{font-size:12px;color:var(--muted);font-weight:600}.kpi .value{font-size:22px;font-weight:800;margin-top:5px}.kpi .sub{font-size:11px;color:var(--muted);margin-top:4px}
+.card{padding:15px;margin-bottom:15px}.card h2{font-size:16px;margin:0 0 12px}.filters{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:12px}.table-wrap{overflow:auto;max-height:520px;border:1px solid var(--border);border-radius:10px}
+table{width:100%;border-collapse:collapse;min-width:900px;font-size:12px}th,td{padding:9px 10px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}th{background:#f8fafc;position:sticky;top:0;z-index:1}td.num,th.num{text-align:right}.empty{padding:35px;text-align:center;color:var(--muted)}
+.tabs{display:flex;gap:7px;margin-bottom:12px;flex-wrap:wrap}.tab{padding:9px 13px;border-radius:8px;border:1px solid var(--border);background:#fff;cursor:pointer;font-weight:700;font-size:13px}.tab.active{background:#e8efff;border-color:#bfd0ff;color:#1746a2}
+.badge{display:inline-block;padding:3px 7px;border-radius:20px;font-size:11px;font-weight:700}.yes{background:#ecfdf3;color:var(--green)}.no{background:#fef3f2;color:var(--red)}
+.small{font-size:12px;color:var(--muted)}.summary-line{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;margin-bottom:10px}
+footer{text-align:center;color:var(--muted);font-size:11px;padding:20px}
+@media(max-width:1000px){.grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:600px){.grid{grid-template-columns:repeat(2,1fr)}.header{align-items:flex-start;flex-direction:column}.status{margin-left:0}.toolbar{align-items:stretch}.toolbar input,.toolbar select,.toolbar button{width:100%}}
+@media print{header,.toolbar,.filters,.tabs,footer{display:none!important}.card{box-shadow:none;border:0}.table-wrap{max-height:none;overflow:visible}}
+</style>
+</head>
+<body>
+<header><div class="header"><div class="brand"><h1>GSTR-2B Analyzer</h1><p>Local JSON importer • Monthly • Yearly • Custom period</p></div><div id="gstInfo">No file imported</div></div></header>
+
+<div class="container">
+<div class="toolbar">
+  <label class="btn primary" for="fileInput">📥 Select GSTR-2B JSON</label>
+  <input id="fileInput" type="file" accept=".json,application/json,text/json" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;">
+  <button class="btn" id="exportCsvBtn">⬇ Export CSV</button>
+  <button class="btn" onclick="window.print()">🖨 Print</button>
+  <button class="btn danger" id="clearBtn">Clear All Data</button>
+  <span class="status" id="status">Data is stored only in this browser.</span>
+</div>
+<div class="card" id="importHelp" style="border:1px dashed #9bb5ef;background:#f8fbff;cursor:pointer">
+  <div style="font-weight:800;margin-bottom:5px">Import GSTR-2B</div>
+  <div class="small">Mobile: tap <b>📥 Select GSTR-2B JSON</b> above and choose the JSON file from Downloads/Files. You can also tap this box to open the file picker.</div>
+</div>
+
+<div class="card">
+  <h2>Report Period</h2>
+  <div class="filters">
+    <select id="periodMode"><option value="all">All Imported Data</option><option value="month">Monthly</option><option value="quarter">Quarterly</option><option value="year">Financial Year</option><option value="custom">Custom Date</option></select>
+    <select id="monthSelect"></select>
+    <select id="quarterSelect"></select>
+    <select id="fySelect"></select>
+    <input id="fromDate" type="date"><input id="toDate" type="date">
+    <button class="btn primary" id="applyBtn">Apply</button>
+  </div>
+  <div class="small" id="periodText">Import one or more GSTR-2B JSON files to begin.</div>
+</div>
+
+<div class="grid">
+  <div class="card kpi"><div class="label">Taxable Value</div><div class="value" id="kTx">₹0.00</div></div>
+  <div class="card kpi"><div class="label">IGST ITC</div><div class="value" id="kIgst">₹0.00</div></div>
+  <div class="card kpi"><div class="label">CGST ITC</div><div class="value" id="kCgst">₹0.00</div></div>
+  <div class="card kpi"><div class="label">SGST ITC</div><div class="value" id="kSgst">₹0.00</div></div>
+  <div class="card kpi"><div class="label">Cess</div><div class="value" id="kCess">₹0.00</div></div>
+  <div class="card kpi"><div class="label">Total ITC</div><div class="value" id="kItc">₹0.00</div><div class="sub" id="kDocs">0 documents</div></div><div class="card kpi"><div class="label">Invoices Received</div><div class="value" id="kReceived">0</div><div class="sub" id="kPending">0 pending</div></div>
+</div>
+
+<div class="card">
+ <div class="tabs">
+  <button class="tab active" data-tab="invoices">B2B Invoices</button>
+  <button class="tab" data-tab="notes">Credit/Debit Notes</button>
+  <button class="tab" data-tab="suppliers">Supplier Summary</button>
+  <button class="tab" data-tab="periods">Imported Periods</button>
+ </div>
+ <div id="tabContent"></div>
+</div>
+</div>
+<footer>GSTR-2B Analyzer • Client-side application • Your JSON data is not sent to a server.</footer>
+
+<script>
+const DBKEY='gstr2b_analyzer_v1';
+const RECONKEY='gstr2b_reconciliation_v1';
+let reconciliation={};
+let sortState={invoices:{key:'dt',dir:'asc'},suppliers:{key:'supplier',dir:'asc'}};
+function loadRecon(){try{reconciliation=JSON.parse(localStorage.getItem(RECONKEY)||'{}');if(!reconciliation||typeof reconciliation!=='object')reconciliation={}}catch(e){reconciliation={}}}
+function saveRecon(){try{localStorage.setItem(RECONKEY,JSON.stringify(reconciliation))}catch(e){}}
+function invoiceKey(x){return [x.gstin||'',x.ctin||'',x.inum||x.ntnum||'',x.dt||'',x.rtnprd||''].join('|')}
+function isReceived(x){return reconciliation[invoiceKey(x)]===true}
+function toggleReceived(key,checked){reconciliation[key]=checked;saveRecon();render()}
+function quarterFor(p){const m=Number(String(p||'').slice(0,2)),y=Number(String(p||'').slice(2));if(!m||!y)return '';if(m<=6&&m>=4)return `Q1 ${y}-${String(y+1).slice(-2)}`;if(m<=9)return `Q2 ${y}-${String(y+1).slice(-2)}`;if(m>=10)return `Q3 ${y}-${String(y+1).slice(-2)}`;return `Q4 ${y-1}-${String(y).slice(-2)}`}
+function quarterKey(p){const m=Number(String(p||'').slice(0,2)),y=Number(String(p||'').slice(2));if(m<=6&&m>=4)return `Q1|${y}`;if(m<=9)return `Q2|${y}`;if(m>=10)return `Q3|${y}`;return `Q4|${y-1}`}
+
+let records=[]; let activeTab='invoices'; let filteredInvoices=[], filteredNotes=[], filteredSuppliers=[];
+const money=n=>'₹'+(Number(n)||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const num=n=>Number(n)||0;
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+function load(){
+  try{records=JSON.parse(localStorage.getItem(DBKEY)||'[]'); if(!Array.isArray(records)) records=[]}
+  catch(e){records=[]}
+  rebuildSelectors(); render();
+}
+function save(){
+  try{localStorage.setItem(DBKEY,JSON.stringify(records)); return true}
+  catch(e){document.getElementById('status').textContent='Browser storage unavailable; current data will remain only until this tab is closed.'; return false}
+}
+function dmy(s){if(!s)return null; const p=s.split('-'); if(p.length!==3)return null; return new Date(+p[2],+p[1]-1,+p[0])}
+function iso(s){const d=dmy(s); return d?d.toISOString().slice(0,10):''}
+function periodLabel(r){return r.rtnprd? r.rtnprd.slice(0,2)+'/'+r.rtnprd.slice(2):'Unknown'}
+function flattenRecord(r){
+ let inv=[], notes=[];
+ (r.docdata?.b2b||[]).forEach(s=>(s.inv||[]).forEach(x=>inv.push({...x,supplier:s.trdnm,ctin:s.ctin,supprd:s.supprd,supfildt:s.supfildt,rtnprd:r.rtnprd,gstin:r.gstin})));
+ (r.docdata?.cdnr||[]).forEach(s=>(s.nt||[]).forEach(x=>notes.push({...x,supplier:s.trdnm,ctin:s.ctin,supprd:s.supprd,supfildt:s.supfildt,rtnprd:r.rtnprd,gstin:r.gstin})));
+ return {inv,notes}
+}
+function countB2B(docdata){
+  return (docdata?.b2b||[]).reduce((n,s)=>n+(s.inv||[]).length,0);
+}
+function countCDNR(docdata){
+  return (docdata?.cdnr||[]).reduce((n,s)=>n+(s.nt||[]).length,0);
+}
+function importJson(obj,name){
+  // GST portal GSTR-2B files normally have the payload under obj.data.
+  // Accept both {data:{...}} and a direct payload for compatibility.
+  const d = obj && obj.data ? obj.data : obj;
+  if(!d || typeof d!=='object') throw new Error('Invalid JSON file.');
+  if(!d.docdata || typeof d.docdata!=='object') {
+    throw new Error('GSTR-2B data section (docdata) was not found in this JSON.');
+  }
+  if(!d.rtnprd) throw new Error('Return period (rtnprd) was not found in this JSON.');
+
+  const gstin = d.gstin || 'GSTIN not provided';
+  const key = gstin + '_' + d.rtnprd;
+
+  // Replace the same GSTIN + return period instead of creating duplicates.
+  records = records.filter(r=>r.key!==key);
+  records.push({
+    key,
+    name:name || 'GSTR-2B JSON',
+    gstin,
+    rtnprd:String(d.rtnprd),
+    gendt:d.gendt || '',
+    docdata:d.docdata,
+    itcsumm:d.itcsumm || {},
+    cpsumm:d.cpsumm || {},
+    version:d.version || ''
+  });
+  records.sort((a,b)=>String(a.rtnprd).localeCompare(String(b.rtnprd)));
+  save();
+  rebuildSelectors();
+  render();
+  document.getElementById('status').textContent =
+    `Imported successfully: ${name} • ${d.rtnprd} • B2B ${countB2B(d.docdata)} • Notes ${countCDNR(d.docdata)}`;
+}
+function getSelectedRecords(){
+ const mode=document.getElementById('periodMode').value;
+ if(mode==='all') return records;
+ if(mode==='month'){const v=document.getElementById('monthSelect').value;return records.filter(r=>r.rtnprd===v)}
+ if(mode==='quarter'){const v=document.getElementById('quarterSelect').value;return records.filter(r=>quarterKey(r.rtnprd)===v)}
+ if(mode==='year'){const v=document.getElementById('fySelect').value;return records.filter(r=>fyFor(r.rtnprd)===v)}
+ if(mode==='custom'){const a=document.getElementById('fromDate').value,b=document.getElementById('toDate').value;return records.filter(r=>{const p=r.rtnprd,dt=new Date(+p.slice(2),+p.slice(0,2)-1,1);return(!a||dt>=new Date(a))&&(!b||dt<=new Date(b))})}
+ return records;
+}
+
+function fyFor(p){const m=+p.slice(0,2),y=+p.slice(2);return m>=4?`${y}-${String(y+1).slice(-2)}`:`${y-1}-${String(y).slice(-2)}`}
+function rebuildSelectors(){
+ const ms=[...new Set(records.map(r=>r.rtnprd))].sort();
+ document.getElementById('monthSelect').innerHTML=ms.length?ms.map(p=>`<option value="${p}">${periodLabel({rtnprd:p})}</option>`).join(''):'<option value="">No months</option>';
+ const qs=[...new Map(ms.map(p=>[quarterKey(p),quarterFor(p)])).entries()].sort();
+ document.getElementById('quarterSelect').innerHTML=qs.length?qs.map(x=>`<option value="${x[0]}">${x[1]}</option>`).join(''):'<option value="">No quarters</option>';
+ const fys=[...new Set(ms.map(fyFor))].sort();
+ document.getElementById('fySelect').innerHTML=fys.length?fys.map(x=>`<option>${x}</option>`).join(''):'<option>No FY</option>';
+}
+
+function aggregate(rs){
+ const inv=[],notes=[]; rs.forEach(r=>{const x=flattenRecord(r);inv.push(...x.inv);notes.push(...x.notes)});
+ return {inv,notes};
+}
+function calc(items){return items.reduce((a,x)=>{a.tx+=num(x.txval);a.igst+=num(x.igst);a.cgst+=num(x.cgst);a.sgst+=num(x.sgst);a.cess+=num(x.cess);return a},{tx:0,igst:0,cgst:0,sgst:0,cess:0})}
+function supplierRows(items){
+ const m=new Map();
+ items.forEach(x=>{
+  const k=x.ctin+'|'+x.supplier;
+  if(!m.has(k))m.set(k,{supplier:x.supplier,ctin:x.ctin,docs:0,tx:0,igst:0,cgst:0,sgst:0,cess:0,received:0});
+  const a=m.get(k);a.docs++;a.tx+=num(x.txval);a.igst+=num(x.igst);a.cgst+=num(x.cgst);a.sgst+=num(x.sgst);a.cess+=num(x.cess);if(isReceived(x))a.received++;
+ });
+ return [...m.values()];
+}
+
+
+function searchFilter(items,term){
+ term=(term||'').toLowerCase();
+ return !term?items:items.filter(x=>JSON.stringify(x).toLowerCase().includes(term));
+}
+function sortItems(items,key,dir){
+ return [...items].sort((a,b)=>{
+  let av=a[key],bv=b[key];
+  if(key==='dt'){av=dmy(av)?.getTime()||0;bv=dmy(bv)?.getTime()||0}
+  else if(['docs','txval'].includes(key)){av=Number(av)||0;bv=Number(bv)||0}
+  else {av=String(av??'').toLowerCase();bv=String(bv??'').toLowerCase()}
+  return av<bv?(dir==='asc'?-1:1):av>bv?(dir==='asc'?1:-1):0;
+ });
+}
+function toggleSort(table,key){
+ if(sortState[table].key===key)sortState[table].dir=sortState[table].dir==='asc'?'desc':'asc';
+ else sortState[table]={key,dir:'asc'};
+ renderTab();
+}
+function sortMark(table,key){
+ const s=sortState[table];
+ return s.key===key?(s.dir==='asc'?' ▲':' ▼'):'';
+}
+function markVisibleReceived(value){
+ searchFilter(filteredInvoices,document.getElementById('invSearch')?.value).forEach(x=>reconciliation[invoiceKey(x)]=value);
+ saveRecon(); render();
+}
+function invoiceHTML(items){
+ const c=calc(items);
+ return `<div class="filters">
+ <input id="invSearch" placeholder="Search invoice, supplier, GSTIN..." style="min-width:280px">
+ <button class="btn" onclick="markVisibleReceived(true)">✓ Mark filtered received</button>
+ <button class="btn" onclick="markVisibleReceived(false)">↺ Mark filtered pending</button>
+ <span class="small">${items.length} invoice(s)</span></div>
+ <div class="table-wrap"><table><thead><tr>
+ <th>Received</th><th>Supplier</th><th>GSTIN</th><th>Invoice No.</th>
+ <th onclick="toggleSort('invoices','dt')" style="cursor:pointer">Invoice Date${sortMark('invoices','dt')}</th>
+ <th>Return Period</th><th class="num">Taxable</th><th class="num">IGST</th><th class="num">CGST</th><th class="num">SGST</th><th class="num">Cess</th><th>ITC</th><th>Rev.</th>
+ </tr></thead><tbody id="invBody">${invoiceRows(items)}</tbody><tfoot><tr>
+ <th colspan="6">TOTAL</th><th class="num">${money(c.tx)}</th><th class="num">${money(c.igst)}</th><th class="num">${money(c.cgst)}</th><th class="num">${money(c.sgst)}</th><th class="num">${money(c.cess)}</th><th colspan="2">${items.length} invoices</th>
+ </tr></tfoot></table></div>`;
+}
+function invoiceRows(items){
+ const sorted=sortItems(searchFilter(items,document.getElementById('invSearch')?.value),sortState.invoices.key,sortState.invoices.dir);
+ return sorted.map(x=>`<tr>
+ <td><input type="checkbox" ${isReceived(x)?'checked':''} onchange="toggleReceived(decodeURIComponent('${encodeURIComponent(invoiceKey(x))}'),this.checked)"></td>
+ <td>${esc(x.supplier)}</td><td>${esc(x.ctin)}</td><td>${esc(x.inum)}</td><td>${esc(x.dt)}</td><td>${periodLabel(x)}</td>
+ <td class="num">${money(x.txval)}</td><td class="num">${money(x.igst)}</td><td class="num">${money(x.cgst)}</td><td class="num">${money(x.sgst)}</td><td class="num">${money(x.cess)}</td>
+ <td><span class="badge ${x.itcavl==='Y'?'yes':'no'}">${x.itcavl==='Y'?'Available':'Not available'}</span></td><td>${esc(x.rev)}</td></tr>`).join('')||'<tr><td colspan="13" class="empty">No invoices found.</td></tr>';
+}
+function noteHTML(items){
+ const c=calc(items);
+ return `<div class="filters"><input id="noteSearch" placeholder="Search note, supplier, GSTIN..." style="min-width:280px"><span class="small">${items.length} note(s)</span></div>
+ <div class="table-wrap"><table><thead><tr><th>Supplier</th><th>GSTIN</th><th>Note No.</th><th>Type</th><th>Date</th><th class="num">Taxable</th><th class="num">IGST</th><th class="num">CGST</th><th class="num">SGST</th><th class="num">Cess</th><th>ITC</th></tr></thead>
+ <tbody id="noteBody">${noteRows(items)}</tbody><tfoot><tr><th colspan="5">TOTAL</th><th class="num">${money(c.tx)}</th><th class="num">${money(c.igst)}</th><th class="num">${money(c.cgst)}</th><th class="num">${money(c.sgst)}</th><th class="num">${money(c.cess)}</th><th>${items.length} notes</th></tr></tfoot></table></div>`;
+}
+function noteRows(items){
+ return searchFilter(items,document.getElementById('noteSearch')?.value).map(x=>`<tr><td>${esc(x.supplier)}</td><td>${esc(x.ctin)}</td><td>${esc(x.ntnum)}</td><td>${esc(x.typ)}</td><td>${esc(x.dt)}</td><td class="num">${money(x.txval)}</td><td class="num">${money(x.igst)}</td><td class="num">${money(x.cgst)}</td><td class="num">${money(x.sgst)}</td><td class="num">${money(x.cess)}</td><td><span class="badge ${x.itcavl==='Y'?'yes':'no'}">${x.itcavl==='Y'?'Available':'Not available'}</span></td></tr>`).join('')||'<tr><td colspan="11" class="empty">No credit/debit notes found.</td></tr>';
+}
+function renderTab(){
+ const el=document.getElementById('tabContent');
+ if(activeTab==='invoices')el.innerHTML=invoiceHTML(filteredInvoices);
+ else if(activeTab==='notes')el.innerHTML=noteHTML(filteredNotes);
+ else if(activeTab==='suppliers')el.innerHTML=supplierHTML(filteredSuppliers);
+ else el.innerHTML=periodsHTML();
+}
+function render(){
+ const rs=getSelectedRecords(),a=aggregate(rs),c=calc(a.inv),n=calc(a.notes);
+ const total={tx:c.tx-n.tx,igst:c.igst-n.igst,cgst:c.cgst-n.cgst,sgst:c.sgst-n.sgst,cess:c.cess-n.cess};
+ document.getElementById('kTx').textContent=money(total.tx);
+ document.getElementById('kIgst').textContent=money(total.igst);
+ document.getElementById('kCgst').textContent=money(total.cgst);
+ document.getElementById('kSgst').textContent=money(total.sgst);
+ document.getElementById('kCess').textContent=money(total.cess);
+ document.getElementById('kItc').textContent=money(total.igst+total.cgst+total.sgst+total.cess);
+ const received=a.inv.filter(isReceived).length;
+ document.getElementById('kReceived').textContent=received;
+ document.getElementById('kPending').textContent=(a.inv.length-received)+' pending';
+ document.getElementById('kDocs').textContent=`${a.inv.length} invoices • ${a.notes.length} notes`;
+ const gst=[...new Set(rs.map(r=>r.gstin))];
+ document.getElementById('gstInfo').textContent=gst.length?gst.join(' • '):'No file imported';
+ document.getElementById('periodText').textContent=rs.length?`${rs.length} imported period(s) included in this report.`:'No matching period.';
+ filteredInvoices=a.inv;filteredNotes=a.notes;filteredSuppliers=supplierRows(a.inv);
+ renderTab();
+}
+function supplierHTML(items){
+ const total=items.reduce((a,x)=>{a.docs+=x.docs;a.tx+=x.tx;a.igst+=x.igst;a.cgst+=x.cgst;a.sgst+=x.sgst;a.cess+=x.cess;a.received+=x.received;return a},{docs:0,tx:0,igst:0,cgst:0,sgst:0,cess:0,received:0});
+ return `<div class="filters"><input id="supSearch" placeholder="Search supplier or GSTIN..." style="min-width:280px"><button class="btn" onclick="exportPartyCSV()">⬇ Party-wise CSV</button><span class="small">${items.length} supplier(s)</span></div><div class="table-wrap"><table><thead><tr><th onclick="toggleSort('suppliers','supplier')" style="cursor:pointer">Supplier${sortMark('suppliers','supplier')}</th><th>GSTIN</th><th class="num" onclick="toggleSort('suppliers','docs')" style="cursor:pointer">Documents${sortMark('suppliers','docs')}</th><th class="num">Taxable</th><th class="num">IGST</th><th class="num">CGST</th><th class="num">SGST</th><th class="num">Cess</th><th class="num">Total ITC</th><th class="num">Received</th><th class="num">Pending</th></tr></thead><tbody id="supBody">${supplierRowsHTML(items)}</tbody><tfoot><tr><th colspan="2">TOTAL</th><th class="num">${total.docs}</th><th class="num">${money(total.tx)}</th><th class="num">${money(total.igst)}</th><th class="num">${money(total.cgst)}</th><th class="num">${money(total.sgst)}</th><th class="num">${money(total.cess)}</th><th class="num">${money(total.igst+total.cgst+total.sgst+total.cess)}</th><th class="num">${total.received}</th><th class="num">${total.docs-total.received}</th></tr></tfoot></table></div>`;
+}
+function supplierRowsHTML(items){
+ const sorted=sortItems(searchFilter(items,document.getElementById('supSearch')?.value),sortState.suppliers.key,sortState.suppliers.dir);
+ return sorted.map(x=>`<tr><td>${esc(x.supplier)}</td><td>${esc(x.ctin)}</td><td class="num">${x.docs}</td><td class="num">${money(x.tx)}</td><td class="num">${money(x.igst)}</td><td class="num">${money(x.cgst)}</td><td class="num">${money(x.sgst)}</td><td class="num">${money(x.cess)}</td><td class="num"><b>${money(x.igst+x.cgst+x.sgst+x.cess)}</b></td><td class="num">${x.received}</td><td class="num">${x.docs-x.received}</td></tr>`).join('')||'<tr><td colspan="11" class="empty">No suppliers found.</td></tr>';
+}
+
+function periodsHTML(){return `<div class="table-wrap"><table><thead><tr><th>GSTIN</th><th>Return Period</th><th>Generation Date</th><th>File</th><th class="num">B2B Invoices</th><th class="num">Notes</th></tr></thead><tbody>${records.map(r=>{const x=flattenRecord(r);return `<tr><td>${esc(r.gstin)}</td><td>${periodLabel(r)}</td><td>${esc(r.gendt)}</td><td>${esc(r.name)}</td><td class="num">${x.inv.length}</td><td class="num">${x.notes.length}</td></tr>`}).join('')||'<tr><td colspan="6" class="empty">No imported files.</td></tr>'}</tbody></table></div>`}
+function downloadCSV(rows,filename){const csv=rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),500)}
+function exportPartyCSV(){
+ const rows=[['Supplier','GSTIN','Documents','Received','Pending','Taxable Value','IGST','CGST','SGST','Cess','Total ITC']];
+ filteredSuppliers.forEach(x=>rows.push([x.supplier,x.ctin,x.docs,x.received,x.docs-x.received,x.tx,x.igst,x.cgst,x.sgst,x.cess,x.igst+x.cgst+x.sgst+x.cess]));
+ downloadCSV(rows,'GSTR-2B-party-wise-report.csv');
+}
+function exportCSV(){
+ const a=aggregate(getSelectedRecords()),rows=[['Type','Supplier','Supplier GSTIN','Document No','Document Date','Return Period','Taxable Value','IGST','CGST','SGST','Cess','ITC Available','Reverse Charge','Invoice Received']];
+ a.inv.forEach(x=>rows.push(['B2B',x.supplier,x.ctin,x.inum,x.dt,periodLabel(x),x.txval,x.igst,x.cgst,x.sgst,x.cess,x.itcavl,x.rev,isReceived(x)?'Yes':'No']));
+ a.notes.forEach(x=>rows.push(['CDNR',x.supplier,x.ctin,x.ntnum,x.dt,periodLabel(x),x.txval,x.igst,x.cgst,x.sgst,x.cess,x.itcavl,x.rev,'N/A']));
+ downloadCSV(rows,'GSTR-2B-report.csv');
+}
+
+document.getElementById('fileInput').addEventListener('click',e=>{e.target.value='';});
+document.getElementById('fileInput').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+rd.onload=()=>{
+  try{
+    let text=String(rd.result||'').replace(/^\uFEFF/,'').trim();
+    if(!text) throw new Error('The selected file is empty.');
+    const obj=JSON.parse(text);
+    importJson(obj,f.name);
+  }catch(err){
+    console.error('GSTR-2B import error:',err);
+    alert('Import failed:\n\n'+(err?.message||err)+'\n\nPlease select the original GSTR-2B JSON downloaded from the GST portal.');
+  }
+};
+rd.onerror=()=>alert('Could not read the selected file.');
+rd.readAsText(f,'UTF-8')});
+document.getElementById('periodMode').addEventListener('change',()=>{const m=document.getElementById('periodMode').value;document.getElementById('monthSelect').style.display=m==='month'?'block':'none';document.getElementById('quarterSelect').style.display=m==='quarter'?'block':'none';document.getElementById('fySelect').style.display=m==='year'?'block':'none';document.getElementById('fromDate').style.display=m==='custom'?'block':'none';document.getElementById('toDate').style.display=m==='custom'?'block':'none'});
+document.getElementById('applyBtn').onclick=render;
+document.getElementById('exportCsvBtn').onclick=exportCSV;
+document.getElementById('clearBtn').onclick=()=>{if(confirm('Delete all imported GSTR-2B data from this browser?')){records=[];save();rebuildSelectors();render()}};
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');activeTab=b.dataset.tab;renderTab()});
+document.getElementById('tabContent').addEventListener('input',e=>{if(e.target.id==='invSearch')document.getElementById('invBody').innerHTML=invoiceRows(filteredInvoices);if(e.target.id==='noteSearch')document.getElementById('noteBody').innerHTML=noteRows(filteredNotes);if(e.target.id==='supSearch')document.getElementById('supBody').innerHTML=supplierRowsHTML(filteredSuppliers)});
+document.getElementById('monthSelect').style.display='none';document.getElementById('quarterSelect').style.display='none';document.getElementById('fySelect').style.display='none';document.getElementById('fromDate').style.display='none';document.getElementById('toDate').style.display='none';
+load();
+</script>
+</body>
+</html>
